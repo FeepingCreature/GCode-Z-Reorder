@@ -102,7 +102,7 @@ Sequence[] breakAtTransfers(Move[] moves)
     list = null;
   }
   foreach (i, move; moves) {
-    if (move.extrusion == µ(0) && move.δ.xy != vec2M(µ(0)) && move.δ.xy.toFloat.length > 50) // not worth bothering with otherwise
+    if (move.extrusion == µ(0) && move.δ.xy != vec2M(µ(0)) && move.δ.xy.toFloat.length > CLEARANCE) // not worth bothering with otherwise
     {
       flush(i);
     }
