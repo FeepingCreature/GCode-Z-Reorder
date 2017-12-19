@@ -84,24 +84,24 @@ bool overlaps(const ref Move move, vec2M low, vec2M high)
   return moves[$-1].to;
 }
 
-Move[] connect(Location from, Location to)
+void connect(Location from, Location to, scope void delegate(scope Move[] moves) dg)
 {
   if (from == to)
   {
-    return [];
+    return dg(null);
   }
   if (from.z == to.z)
   {
-    return [Move(0, from, to)];
+    return dg([Move(0, from, to)]);
   }
   if (from.z < to.z)
   {
     auto inter = from.xy_(to.z);
-    return [Move(0, from, inter), Move(0, inter, to)];
+    return dg([Move(0, from, inter), Move(0, inter, to)]);
   }
   /*if (from.z > to.z)*/ {
     auto inter = to.xy_(from.z);
-    return [Move(0, from, inter), Move(0, inter, to)];
+    return dg([Move(0, from, inter), Move(0, inter, to)]);
   }
 }
 

@@ -9,6 +9,7 @@ import move;
 
 class Sequence
 {
+  size_t id; // unique in the Sequence[], smaller than Sequence[].length
   Move[] moves;
   bool[Sequence] supports; // transitive
   Micro minz, maxz;
@@ -45,15 +46,16 @@ class Sequence
       this.supports[support] = true; // since we haven't seen it via transitive supports before
     }
 
-    foreach (next; support.supports.keys)
+    foreach (next; support.supports.byKey)
     {
       impliedSupports[next] = true;
     }
   }
-  this(Move[] moves)
+  this(size_t id, Move[] moves)
   {
     alias vmin = (a, b) => vec2M(min(a.x, b.x), min(a.y, b.y));
     alias vmax = (a, b) => vec2M(max(a.x, b.x), max(a.y, b.y));
+    this.id = id;
     this.moves = moves;
     this.minz = moves.map!(m => min(m.from.z, m.to.z)).minElement;
     this.maxz = moves.map!(m => max(m.from.z, m.to.z)).maxElement;

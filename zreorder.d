@@ -56,17 +56,25 @@ class ZReorder : Machine
 
     assert(sequences.valid(error), "Final sequence invalid: "~error);
 
-    auto newmoves = joinOrder(sequences);
-
-    foreach (move; connect(this.outputState.location, newmoves.start).chain(newmoves))
+    bool firstMoves = true;
+    joinOrder(sequences, (scope Move[] moves)
     {
-      outputMove(move);
-    }
+      if (firstMoves)
+      {
+        connect(this.outputState.location, moves.start, (scope Move[] moves)
+        {
+          foreach (move; moves) outputMove(move);
+        });
+        firstMoves = false;
+      }
+      foreach (move; moves) outputMove(move);
+    });
+
     this.state = this.outputState;
     this.moves = null;
   }
 
-  void outputMove(Move move)
+  void outputMove(const ref Move move)
   {
     assert(move.from == this.outputState.location, "weird move: we are at %s but emit %s".format(this.outputState.location, move));
     assert(move.type == 0 || move.type == 1);
@@ -94,7 +102,7 @@ Sequence[] breakAtTransfers(Move[] moves)
   Move[] list;
   void flush(size_t progress) {
     if (!list.length) return;
-    auto newseq = new Sequence(list);
+    auto newseq = new Sequence(res.length, list);
     // stderr.writefln("%s / %s: add %s supports", progress, moves.length, res.length);
     newseq.addSupports(res);
 
@@ -112,21 +120,18 @@ Sequence[] breakAtTransfers(Move[] moves)
   return res;
 }
 
-auto joinOrder(Sequence[] order)
+void joinOrder(Sequence[] order, scope void delegate(scope Move[]) dg)
 {
-  Move[] moves;
-  foreach (seq; order)
+  Location prevEnd;
+  foreach (i, seq; order)
   {
-    if (moves.length)
+    if (i > 0)
     {
-      moves ~= connect(moves.end, seq.moves.start) ~ seq.moves;
+      connect(prevEnd, seq.moves.start, dg);
     }
-    else
-    {
-      moves = seq.moves;
-    }
+    dg(seq.moves);
+    prevEnd = seq.moves.end;
   }
-  return moves;
 }
 
 // all Sequences before uncheckedFrom are unchanged from previous valid=true runs
@@ -134,46 +139,54 @@ bool valid(Sequence[] order, out string error, size_t uncheckedFrom = 0)
 {
   // condition 1: all sequences are preceded by all their supports
   {
-    bool[Sequence] preceding;
+    scope preceding = new bool[order.length];
     foreach (i, seq; order)
     {
-      if (i >= uncheckedFrom && !seq.supports.keys.all!(s => s in preceding))
+      if (i >= uncheckedFrom && !seq.supports.byKey.all!(s => preceding[s.id]))
       {
         error = "condition 1, unsupported sequence";
         return false;
       }
-      preceding[seq] = true;
+      preceding[seq.id] = true;
     }
   }
   // condition 2: intermoves don't collide with any preceding sequence move
-  foreach (i, array; order.cumulativeFold!"a ~ b"(Sequence[].init).drop(1).enumerate)
+  foreach (i, _; order.enumerate.drop(1))
   {
     if (i < uncheckedFrom) continue;
-    const fromSeq = array[$-2], toSeq = array[$-1], preceding = array[0..$-2];
+    const preceding = order[0..i-1], fromSeq = order[i-1], toSeq = order[i];
     const from = fromSeq.end, to = toSeq.start;
-    const intermoves = connect(from + vec3M(µ(0), µ(0), Micro.epsilon), to + vec3M(µ(0), µ(0), Micro.epsilon));
-    if (preceding.any!(s => intermoves.any!((const ref intermove) => intermove.runsInto(s))))
+    bool any_run_into;
+    connect(from + vec3M(µ(0), µ(0), Micro.epsilon), to + vec3M(µ(0), µ(0), Micro.epsilon), (scope Move[] intermoves)
     {
-      stderr.writefln("interesting... we hit an intermove collide at %s / %s", i, array.length);
-      error = "condition 2, intermove %s collides at %s: %s".format(intermoves, i, array);
+      if (any_run_into) return;
+      any_run_into = any_run_into || preceding.any!(s => intermoves.any!((const ref intermove) => intermove.runsInto(s)));
+      if (any_run_into)
+      {
+        error = "condition 2, intermove %s collides at %s: %s".format(intermoves, i, preceding);
+      }
+    });
+    if (any_run_into)
+    {
+      stderr.writefln("interesting... we hit an intermove collide at %s / %s", i+1, order.length);
       return false;
     }
   }
   // condition 3: no sequence must be preceded by any sequence
   // that contains any moves higher than the lowest move in it plus Z_CLEARANCE.
   {
-    // TODO rewrite more functional-y
-    bool[Sequence] preceding;
+    Micro highmark = µ(0);
     foreach (i, seq; order)
     {
-      if (i >= uncheckedFrom && preceding.keys.any!(prec => prec.maxz > seq.minz + Z_CLEARANCE))
+      if (i >= uncheckedFrom && highmark > seq.minz + Z_CLEARANCE)
       {
         stderr.writefln("interesting... we hit a z spread violate: %s > %s + %s",
-          preceding.keys.map!(a => a.maxz).maxElement, seq.minz, Z_CLEARANCE);
+          highmark, seq.minz, Z_CLEARANCE);
         error = "condition 3, z spread violated";
         return false;
       }
-      preceding[seq] = true;
+      assert(seq.maxz >= µ(0)); // else initial is not guaranteed
+      highmark = highmark.max(seq.maxz);
     }
   }
 
