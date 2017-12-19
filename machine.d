@@ -37,29 +37,27 @@ abstract class Machine
   }
   bool parseMove(int type, string str)
   {
-    Move move;
-    move.type = type;
-    move.from = this.state.location;
-
-    Micro newExtrusion = this.state.extrusionDistance;
-    Location newLoc = this.state.location;
+    MachineState newState = this.state;
     const parts = str.split(" ");
     foreach (part; parts)
     {
-      if (auto rest = part.after("F")) move.feedrate = rest.to!int;
-      else if (auto rest = part.after("X")) newLoc.x = rest.parseµ;
-      else if (auto rest = part.after("Y")) newLoc.y = rest.parseµ;
-      else if (auto rest = part.after("Z")) newLoc.z = rest.parseµ;
-      else if (auto rest = part.after("E")) newExtrusion = rest.parseµ;
+      if (auto rest = part.after("F")) newState.feedrate = rest.to!int;
+      else if (auto rest = part.after("X")) newState.location.x = rest.parseµ;
+      else if (auto rest = part.after("Y")) newState.location.y = rest.parseµ;
+      else if (auto rest = part.after("Z")) newState.location.z = rest.parseµ;
+      else if (auto rest = part.after("E")) newState.extrusionDistance = rest.parseµ;
       else assert(false, "what is "~part);
     }
 
-    move.to = newLoc;
-    move.extrusion = newExtrusion - this.state.extrusionDistance;
+    Move move;
+    move.type = type;
+    move.from = this.state.location;
+    move.to = newState.location;
+    move.extrusion = newState.extrusionDistance - this.state.extrusionDistance;
+    move.feedrate = newState.feedrate;
 
     // must be updated whether we handle the move or not, since move generation relies on it
-    this.state.extrusionDistance = newExtrusion;
-    this.state.location = newLoc;
+    this.state = newState;
 
     if (!handleMove(move)) return false;
 
@@ -71,5 +69,6 @@ struct MachineState
 {
   Micro extrusionDistance;
   Location location;
+  int feedrate;
 }
 

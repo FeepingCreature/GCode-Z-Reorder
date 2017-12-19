@@ -80,7 +80,11 @@ class ZReorder : Machine
     assert(move.type == 0 || move.type == 1);
     string code = (move.type == 0) ? "G0 " : "G1 ";
     string[] parts;
-    if (move.feedrate) parts ~= format!"F%s"(move.feedrate);
+    int feedrate = move.feedrate ? move.feedrate : this.outputState.feedrate;
+    if (feedrate != this.outputState.feedrate)
+    {
+      parts ~= format!"F%s"(move.feedrate);
+    }
     if (move.to.xy != move.from.xy || move.to.z != move.from.z)
     {
       parts ~= format!"X%s"(move.to.x);
@@ -93,6 +97,7 @@ class ZReorder : Machine
 
     this.outputState.extrusionDistance += move.extrusion;
     this.outputState.location = move.to;
+    this.outputState.feedrate = feedrate;
   }
 }
 
