@@ -11,7 +11,8 @@ class Sequence
 {
   Move[] moves;
   bool[Sequence] supports; // transitive
-  Micro zmax, zmin;
+  Micro minz, maxz;
+  vec2M minxy, maxxy; // I'll take "stripper names" for 200.
   invariant
   {
     assert(moves.length > 0);
@@ -51,16 +52,36 @@ class Sequence
   }
   this(Move[] moves)
   {
+    alias vmin = (a, b) => vec2M(min(a.x, b.x), min(a.y, b.y));
+    alias vmax = (a, b) => vec2M(max(a.x, b.x), max(a.y, b.y));
     this.moves = moves;
-    this.zmin = moves.map!(m => min(m.from.z, m.to.z)).minElement;
-    this.zmax = moves.map!(m => max(m.from.z, m.to.z)).maxElement;
+    this.minz = moves.map!(m => min(m.from.z, m.to.z)).minElement;
+    this.maxz = moves.map!(m => max(m.from.z, m.to.z)).maxElement;
+    this.minxy = moves.map!(m => vmin(m.from.xy, m.to.xy)).fold1!vmin;
+    this.maxxy = moves.map!(m => vmax(m.from.xy, m.to.xy)).fold1!vmax;
   }
   override string toString() const
   {
-    return "Sequence(<%s - %s>: %s moves)".format(this.zmin, this.zmax, this.moves.length);
+    return "Sequence(<%s - %s>: %s moves)".format(this.minz, this.maxz, this.moves.length);
   }
 }
 
+bool runsInto(const ref Move move, const Sequence sequence)
+{
+  if (min(move.from.z, move.to.z) > sequence.maxz)
+  {
+    return false;
+  }
+  if (!move.overlaps(sequence.minxy, sequence.maxxy)) {
+    version(check_aabb)
+    {
+      bool res = sequence.moves.any!((const ref sequenceMove) => .move.runsInto(move, sequenceMove));
+      assert(!res);
+    }
+    return false;
+  }
+  return sequence.moves.any!((const ref sequenceMove) => .move.runsInto(move, sequenceMove));
+}
 
 auto fold1(alias Fun, Range)(Range range)
 if (isInputRange!Range)

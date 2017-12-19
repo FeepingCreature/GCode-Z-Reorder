@@ -35,6 +35,45 @@ bool runsInto(const ref Move movement, const ref Move obstacle)
     && movement.overlaps(obstacle);
 }
 
+bool overlaps(const ref Move move, vec2M low, vec2M high)
+{
+  import std.algorithm;
+  import vector;
+  low = low - vec2M(Micro(CLEARANCE));
+  high = high + vec2M(Micro(CLEARANCE));
+  const lowf = low.toFloat, highf = high.toFloat;
+  const origin = move.from.xy.toFloat, dest = move.to.xy.toFloat;
+  const dir = dest - origin;
+  if (dir == vec2f(0)) { // stationary move
+    return origin.x >= lowf.x && origin.y >= lowf.y
+      && origin.x <= highf.x && origin.y <= highf.y;
+  }
+  if (dir.x == 0) { // pure y move
+    const cross_low_t = (lowf.y - origin.y) / dir.y;
+    const cross_high_t = (highf.y - origin.y) / dir.y;
+    const enter_t = min(cross_low_t, cross_high_t);
+    const exit_t = max(cross_low_t, cross_high_t);
+    return enter_t <= exit_t && enter_t < 1 && exit_t > 0;
+  }
+  if (dir.y == 0) { // pure x move
+    const cross_low_t = (lowf.x - origin.x) / dir.x;
+    const cross_high_t = (highf.x - origin.x) / dir.x;
+    const enter_t = min(cross_low_t, cross_high_t);
+    const exit_t = max(cross_low_t, cross_high_t);
+    return enter_t <= exit_t && enter_t < 1 && exit_t > 0;
+  }
+  const cross_low_t = (lowf - origin) / dir;
+  const cross_high_t = (highf - origin) / dir;
+  const enter_t = vector.min(cross_low_t, cross_high_t);
+  const exit_t = vector.max(cross_low_t, cross_high_t);
+  const last_enter_t = max(enter_t.x, enter_t.y);
+  const first_exit_t = max(exit_t.x, exit_t.y);
+  // last_enter_t .. first_exit_t is our aabb crossing range
+  // we check if it overlaps with 0..1, our interval range.
+  // last_enter > first_exit -> move misses aabb entirely
+  return last_enter_t <= first_exit_t && last_enter_t < 1 && first_exit_t > 0;
+}
+
 @property Location start(const Move[] moves)
 {
   return moves[0].from;

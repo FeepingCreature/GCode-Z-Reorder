@@ -147,3 +147,15 @@ alias Vector!(long, 3) vec3l;
 alias Vector!(long, 2) vec2l;
 
 alias Vector!(float, 2) vec2f;
+
+vec2f min(vec2f a, vec2f b)
+{
+  import std.algorithm: min;
+  return vec2f(min(a.x, b.x), min(a.y, b.y));
+}
+
+vec2f max(vec2f a, vec2f b)
+{
+  import std.algorithm: max;
+  return vec2f(max(a.x, b.x), max(a.y, b.y));
+}

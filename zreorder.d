@@ -152,7 +152,7 @@ bool valid(Sequence[] order, out string error, size_t uncheckedFrom = 0)
     const fromSeq = array[$-2], toSeq = array[$-1], preceding = array[0..$-2];
     const from = fromSeq.end, to = toSeq.start;
     const intermoves = connect(from + vec3M(µ(0), µ(0), Micro.epsilon), to + vec3M(µ(0), µ(0), Micro.epsilon));
-    if (preceding.any!(s => s.moves.any!(m => intermoves.any!(intermove => intermove.runsInto(m)))))
+    if (preceding.any!(s => intermoves.any!((const ref intermove) => intermove.runsInto(s))))
     {
       stderr.writefln("interesting... we hit an intermove collide at %s / %s", i, array.length);
       error = "condition 2, intermove %s collides at %s: %s".format(intermoves, i, array);
@@ -166,10 +166,10 @@ bool valid(Sequence[] order, out string error, size_t uncheckedFrom = 0)
     bool[Sequence] preceding;
     foreach (i, seq; order)
     {
-      if (i >= uncheckedFrom && preceding.keys.any!(prec => prec.zmax > seq.zmin + Z_CLEARANCE))
+      if (i >= uncheckedFrom && preceding.keys.any!(prec => prec.maxz > seq.minz + Z_CLEARANCE))
       {
         stderr.writefln("interesting... we hit a z spread violate: %s > %s + %s",
-          preceding.keys.map!(a => a.zmax).maxElement, seq.zmin, Z_CLEARANCE);
+          preceding.keys.map!(a => a.maxz).maxElement, seq.minz, Z_CLEARANCE);
         error = "condition 3, z spread violated";
         return false;
       }
