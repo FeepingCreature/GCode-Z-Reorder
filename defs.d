@@ -6,4 +6,4 @@ import micro;
 
 enum float CLEARANCE = 6; // mm
 
-enum Micro Z_CLEARANCE = Micro(3_000_000); // 3 mm
+enum Micro Z_CLEARANCE = Micro(3.0); // 3 mm
