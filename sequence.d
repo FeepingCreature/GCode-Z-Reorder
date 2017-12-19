@@ -61,3 +61,14 @@ class Sequence
   }
 }
 
+
+auto fold1(alias Fun, Range)(Range range)
+if (isInputRange!Range)
+{
+  return range.drop(1).fold!Fun(range.front);
+}
+
+unittest
+{
+  assert([[1], [2], [3], [4], [5]].fold1!((a, b) => a ~ b) == [1, 2, 3, 4, 5]);
+}

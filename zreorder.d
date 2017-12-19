@@ -1,7 +1,7 @@
 module zreorder;
 
 import std.algorithm;
-import std.range : array, drop, dropBack, enumerate, front, isInputRange;
+import std.range : array, chain, drop, dropBack, enumerate, front, isInputRange;
 import std.stdio;
 import std.string;
 
@@ -58,9 +58,7 @@ class ZReorder : Machine
 
     auto newmoves = joinOrder(sequences);
 
-    newmoves = connect(this.outputState.location, newmoves.start) ~ newmoves;
-
-    foreach (move; newmoves)
+    foreach (move; connect(this.outputState.location, newmoves.start).chain(newmoves))
     {
       outputMove(move);
     }
@@ -114,22 +112,21 @@ Sequence[] breakAtTransfers(Move[] moves)
   return res;
 }
 
-Move[] joinOrder(Sequence[] order)
+auto joinOrder(Sequence[] order)
 {
-  return order
-    .map!(seq => seq.moves)
-    .fold1!((a, b) => a ~ connect(a.end, b.start) ~ b);
-}
-
-auto fold1(alias Fun, Range)(Range range)
-if (isInputRange!Range)
-{
-  return range.drop(1).fold!Fun(range.front);
-}
-
-unittest
-{
-  assert([[1], [2], [3], [4], [5]].fold1!((a, b) => a ~ b) == [1, 2, 3, 4, 5]);
+  Move[] moves;
+  foreach (seq; order)
+  {
+    if (moves.length)
+    {
+      moves ~= connect(moves.end, seq.moves.start) ~ seq.moves;
+    }
+    else
+    {
+      moves = seq.moves;
+    }
+  }
+  return moves;
 }
 
 // all Sequences before uncheckedFrom are unchanged from previous valid=true runs
