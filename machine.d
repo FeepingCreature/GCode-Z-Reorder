@@ -23,15 +23,19 @@ abstract class Machine
     if (auto rest = line.after("G0 ")) success = parseMove(0, rest.splitter(";").front.strip);
     else if (auto rest = line.after("G1 ")) success = parseMove(1, rest.splitter(";").front.strip);
     else if (line.after(";LAYER") || line.after(";TYPE") || line.after(";TIME_ELAPSED")) return;
-    else if (line == "G92 E0")
+    else if (line.after("G92 E0"))
     {
-      state.extrusionDistance = µ(0);
+      auto move = Move(92, this.state.location, this.state.location, 0);
+      this.state.extrusionDistance = µ(0);
+
+      handleMove(move);
       return;
     }
 
     if (!success) {
       stderr.writefln("flush because %s", line);
       flush;
+
       output(line);
     }
   }

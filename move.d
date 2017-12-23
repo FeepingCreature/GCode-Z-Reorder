@@ -11,7 +11,7 @@ struct Move
   int feedrate;
   Micro extrusion;
   Location from, to;
-  this(int type, Location from, Location to, Micro extrusion = µ(0), int feedrate = 0)
+  this(int type, Location from, Location to, int feedrate, Micro extrusion = µ(0))
   {
     assert(from.xy == to.xy || from.z == to.z);
     this.type = type;
@@ -84,24 +84,36 @@ bool overlaps(const ref Move move, vec2M low, vec2M high)
   return moves[$-1].to;
 }
 
-void connect(Location from, Location to, scope void delegate(scope Move[] moves) dg)
+void connect(Location from, Location to, bool retract, scope void delegate(scope Move[] moves) dg)
 {
+  auto distance = (to - from).toFloat.length;
+  int speed = 3600;
+  if (distance > 2) speed = 5400;
+  void wrap(scope Move[] moves)
+  {
+    if (!moves) return;
+    import std.math;
+    auto retractBy = min(5, ceil(distance + 0.5));
+    if (retract) dg([Move(0, from, from, 0, Micro(-retractBy))]);
+    dg(moves);
+    if (retract) dg([Move(0, to, to, 0, Micro(retractBy))]);
+  }
   if (from == to)
   {
-    return dg(null);
+    return wrap(null);
   }
   if (from.z == to.z)
   {
-    return dg([Move(0, from, to)]);
+    return wrap([Move(0, from, to, speed)]);
   }
   if (from.z < to.z)
   {
     auto inter = from.xy_(to.z);
-    return dg([Move(0, from, inter), Move(0, inter, to)]);
+    return wrap([Move(0, from, inter, speed), Move(0, inter, to, speed)]);
   }
   /*if (from.z > to.z)*/ {
     auto inter = to.xy_(from.z);
-    return dg([Move(0, from, inter), Move(0, inter, to)]);
+    return wrap([Move(0, from, inter, speed), Move(0, inter, to, speed)]);
   }
 }
 

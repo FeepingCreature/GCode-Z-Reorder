@@ -10,17 +10,18 @@ import machine;
 import micro;
 import move;
 import sequence;
+import stringutils;
 
 class ZReorder : Machine
 {
   MachineState outputState;
   Move[] moves;
+  bool isRetracted;
 
   override void output(string line)
   {
-    if (line == "G92 E0")
+    if (line.after("G92 E0"))
     {
-      this.state.extrusionDistance = µ(0);
       this.outputState.extrusionDistance = µ(0);
     }
     writeln(line);
@@ -31,7 +32,7 @@ class ZReorder : Machine
     if ( (move.type == 0 && move.extrusion > µ(0)) // move rapidly about, spewing liquid plastic
       || !(move.from.xy == move.to.xy || move.from.z == move.to.z) // impure move, spanning both xy and z
     ) {
-      stderr.writeln("handle failed, set output location to ", move.to);
+      stderr.writeln("handle failed, set output location to ", move.to, " for ", move);
       this.outputState.location = move.to; // fall back to plain output = output state updates
       this.outputState.extrusionDistance += move.extrusion;
       return false;
@@ -57,11 +58,11 @@ class ZReorder : Machine
     assert(sequences.valid(error), "Final sequence invalid: "~error);
 
     bool firstMoves = true;
-    joinOrder(sequences, (scope Move[] moves)
+    joinOrder(sequences, &this.isRetracted, (scope Move[] moves)
     {
       if (firstMoves)
       {
-        connect(this.outputState.location, moves.start, (scope Move[] moves)
+        connect(this.outputState.location, moves.start, !this.isRetracted, (scope Move[] moves)
         {
           foreach (move; moves) outputMove(move);
         });
@@ -70,15 +71,14 @@ class ZReorder : Machine
       foreach (move; moves) outputMove(move);
     });
 
-    this.state = this.outputState;
     this.moves = null;
   }
 
   void outputMove(const ref Move move)
   {
     assert(move.from == this.outputState.location, "weird move: we are at %s but emit %s".format(this.outputState.location, move));
-    assert(move.type == 0 || move.type == 1);
-    string code = (move.type == 0) ? "G0 " : "G1 ";
+    assert(move.type == 0 || move.type == 1 || move.type == 92);
+    string code = (move.type == 0) ? "G0 " : (move.type == 1) ? "G1 " : "G92 ";
     string[] parts;
     int feedrate = move.feedrate ? move.feedrate : this.outputState.feedrate;
     if (feedrate != this.outputState.feedrate)
@@ -92,12 +92,14 @@ class ZReorder : Machine
     }
     if (move.to.z != move.from.z) parts ~= format!"Z%s"(move.to.z);
     if (move.extrusion != µ(0)) parts ~= format!"E%s"(this.outputState.extrusionDistance + move.extrusion);
+    if (move.type == 92) parts ~= "E0";
 
     this.output(code~parts.join(" "));
 
     this.outputState.extrusionDistance += move.extrusion;
     this.outputState.location = move.to;
     this.outputState.feedrate = feedrate;
+    this.isRetracted = move.extrusion < µ(0) ? true : move.extrusion > µ(0) ? false : this.isRetracted;
   }
 }
 
@@ -115,7 +117,7 @@ Sequence[] breakAtTransfers(Move[] moves)
     list = null;
   }
   foreach (i, move; moves) {
-    if (move.extrusion == µ(0) && move.δ.xy != vec2M(µ(0)) && move.δ.xy.toFloat.length > CLEARANCE) // not worth bothering with otherwise
+    if (move.extrusion == µ(0) && move.δ.xy != vec2M(µ(0)) && move.δ.xy.toFloat.length > 100) // not worth bothering with otherwise
     {
       flush(i);
     }
@@ -125,14 +127,14 @@ Sequence[] breakAtTransfers(Move[] moves)
   return res;
 }
 
-void joinOrder(Sequence[] order, scope void delegate(scope Move[]) dg)
+void joinOrder(Sequence[] order, bool* isRetracted, scope void delegate(scope Move[]) dg)
 {
   Location prevEnd;
   foreach (i, seq; order)
   {
     if (i > 0)
     {
-      connect(prevEnd, seq.moves.start, dg);
+      connect(prevEnd, seq.moves.start, !*isRetracted, dg);
     }
     dg(seq.moves);
     prevEnd = seq.moves.end;
@@ -162,7 +164,7 @@ bool valid(Sequence[] order, out string error, size_t uncheckedFrom = 0)
     const preceding = order[0..i-1], fromSeq = order[i-1], toSeq = order[i];
     const from = fromSeq.end, to = toSeq.start;
     bool any_run_into;
-    connect(from + vec3M(µ(0), µ(0), Micro.epsilon), to + vec3M(µ(0), µ(0), Micro.epsilon), (scope Move[] intermoves)
+    connect(from + vec3M(µ(0), µ(0), Micro.epsilon), to + vec3M(µ(0), µ(0), Micro.epsilon), false, (scope Move[] intermoves)
     {
       if (any_run_into) return;
       any_run_into = any_run_into || preceding.any!(s => intermoves.any!((const ref intermove) => intermove.runsInto(s)));
