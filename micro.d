@@ -15,11 +15,14 @@ struct Micro
 {
   long value;
   string toString() const {
-    string res = this.value.to!string;
+    bool neg = this.value < 0;
+    auto absValue = neg ? -value : value;
+    string res = absValue.to!string;
     while (res.length < 7) res = "0" ~ res;
     res = res[0 .. $-6] ~ "." ~ res[$-6 .. $];
     while (res.before("0")) res = res.before("0");
     if (auto str = res.before(".")) res = str;
+    if (neg) res = "-" ~ res;
     return res;
   }
   this(float value) { this.value = cast(long) (cast(double) value * 1_000_000); }
